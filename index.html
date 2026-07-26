@@ -252,6 +252,18 @@ function defaultState() {
   };
 }
 
+function normalizeState(s) {
+  if (!s || typeof s !== "object") s = {};
+  if (!s.stage1 || typeof s.stage1 !== "object") s.stage1 = {};
+  ["A", "B", "C"].forEach(g => {
+    if (!s.stage1[g] || typeof s.stage1[g] !== "object") s.stage1[g] = {};
+  });
+  if (!s.stage2 || typeof s.stage2 !== "object") s.stage2 = { qualifiers: null, scores: {} };
+  if (s.stage2.qualifiers === undefined) s.stage2.qualifiers = null;
+  if (!s.stage2.scores || typeof s.stage2.scores !== "object") s.stage2.scores = {};
+  return s;
+}
+
 let state = defaultState();
 let activeTab = "A";
 let adminMode = false;
@@ -330,7 +342,7 @@ function loadState() {
     const val = snapshot.val();
     if (val) {
       applyingRemote = true;
-      state = val;
+      state = normalizeState(val);
       render();
       applyingRemote = false;
     } else {
@@ -677,15 +689,7 @@ function render() {
   else if (activeTab === "leaderboard") renderLeaderboard();
   else if (activeTab === "final") renderFinal();
   else if (activeTab === "rules") renderRules();
-  document.getElementById("footer").innerHTML = `Scores sync across every device on this link &middot; <span id="reset-link">reset tournament</span>`;
-  const resetLink = document.getElementById("reset-link");
-  if (resetLink) resetLink.addEventListener("click", async () => {
-    if (confirm("Reset the entire tournament? This clears all scores for everyone.")) {
-      state = defaultState();
-      await saveState();
-      render();
-    }
-  });
+  document.getElementById("footer").innerHTML = `Scores sync across every device on this link`;
   const adminBtn = document.getElementById("admin-toggle");
   if (adminBtn) {
     adminBtn.textContent = adminMode ? "Admin: On" : "Admin: Off";
