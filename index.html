@@ -210,7 +210,10 @@
   </div>
   <div class="subbar">
     <span id="subbar-title">Group A</span>
-    <span class="sync" id="sync-indicator"><span class="sync-dot"></span>Connecting&hellip;</span>
+    <span style="display:flex; align-items:center; gap:10px;">
+      <button id="admin-toggle" style="border:1px solid var(--border-c); background:var(--birch); color:var(--muted); border-radius:6px; padding:3px 8px; font-size:0.68rem; cursor:pointer; font-family:'Work Sans', sans-serif;">Admin: Off</button>
+      <span class="sync" id="sync-indicator"><span class="sync-dot"></span>Connecting&hellip;</span>
+    </span>
   </div>
   <div id="content"></div>
   <div class="footer-note" id="footer"></div>
@@ -251,6 +254,7 @@ function defaultState() {
 
 let state = defaultState();
 let activeTab = "A";
+let adminMode = false;
 
 function cellData(holeObj, name) {
   return holeObj && holeObj[name] ? holeObj[name] : { strokes: null, chipin: false };
@@ -378,6 +382,12 @@ function toggleChip(stageObj, name, holeNum) {
   stageObj[key][name].chipin = !stageObj[key][name].chipin;
 }
 
+function clearStrokes(stageObj, name, holeNum) {
+  const key = "hole" + holeNum;
+  if (!stageObj[key]) stageObj[key] = {};
+  stageObj[key][name] = { strokes: null, chipin: false };
+}
+
 function renderBottomNav() {
   const tabs = ["A", "B", "C", "leaderboard", "final", "rules"];
   const el = document.getElementById("bottomnav");
@@ -403,7 +413,7 @@ function renderGroupView(groupKey) {
     const pts = computeHolePoints(names, holeObj);
     const ranks = rankLabels(names.map(nm => ({ key: nm, value: cellData(holeObj, nm).strokes == null ? -999 : -cellData(holeObj, nm).strokes })));
     html += `<div class="hole-heading">Hole ${h} <span class="par">Par 3</span></div>
-    <table><thead><tr class="tbl-head"><th>Pos</th><th>Player</th><th>Strokes</th><th>Chip</th><th>Pts</th></tr></thead><tbody>`;
+    <table><thead><tr class="tbl-head"><th>Pos</th><th>Player</th><th>Strokes</th><th>Chip</th><th>Pts</th>${adminMode ? '<th></th>' : ''}</tr></thead><tbody>`;
     names.forEach(nm => {
       const cd = cellData(holeObj, nm);
       const p = pts[nm] + (cd.chipin ? 1 : 0);
@@ -418,6 +428,7 @@ function renderGroupView(groupKey) {
         </div></td>
         <td><button class="chip-btn ${cd.chipin ? 'on' : ''}" data-act="chip" data-group="${groupKey}" data-name="${nm}" data-hole="${h}" title="Chip-in bonus">&#9679;</button></td>
         <td class="pts ${cd.strokes == null ? '' : (p > 0 ? 'pos-score' : 'zero-score')}">${cd.strokes == null ? '' : fmtPts(p)}</td>
+        ${adminMode ? `<td><button data-act="clear" data-group="${groupKey}" data-name="${nm}" data-hole="${h}" style="border:1px solid var(--red); color:var(--red); background:var(--birch); border-radius:6px; width:26px; height:26px; cursor:pointer;" title="Clear this score">&times;</button></td>` : ''}
       </tr>`;
     });
     html += `</tbody></table>`;
@@ -444,6 +455,14 @@ function renderGroupView(groupKey) {
     btn.addEventListener("click", () => {
       const { name, hole, group } = btn.dataset;
       toggleChip(state.stage1[group], name, hole);
+      scheduleSave();
+      render();
+    });
+  });
+  document.querySelectorAll('[data-act="clear"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      const { name, hole, group } = btn.dataset;
+      clearStrokes(state.stage1[group], name, hole);
       scheduleSave();
       render();
     });
@@ -559,7 +578,7 @@ function renderFinal() {
     const pts = computeHolePoints(names, holeObj);
     const ranks = rankLabels(names.map(nm => ({ key: nm, value: cellData(holeObj, nm).strokes == null ? -999 : -cellData(holeObj, nm).strokes })));
     html += `<div class="hole-heading">Hole ${h} <span class="par">Par 3 &middot; Final</span></div>
-    <table><thead><tr class="tbl-head"><th>Pos</th><th>Player</th><th>Strokes</th><th>Chip</th><th>Pts</th></tr></thead><tbody>`;
+    <table><thead><tr class="tbl-head"><th>Pos</th><th>Player</th><th>Strokes</th><th>Chip</th><th>Pts</th>${adminMode ? '<th></th>' : ''}</tr></thead><tbody>`;
     names.forEach(nm => {
       const cd = cellData(holeObj, nm);
       const p = pts[nm] + (cd.chipin ? 1 : 0);
@@ -574,6 +593,7 @@ function renderFinal() {
         </div></td>
         <td><button class="chip-btn ${cd.chipin ? 'on' : ''}" data-act="chip" data-name="${nm}" data-hole="${h}" title="Chip-in bonus">&#9679;</button></td>
         <td class="pts ${cd.strokes == null ? '' : (p > 0 ? 'pos-score' : 'zero-score')}">${cd.strokes == null ? '' : fmtPts(p)}</td>
+        ${adminMode ? `<td><button data-act="clear" data-name="${nm}" data-hole="${h}" style="border:1px solid var(--red); color:var(--red); background:var(--birch); border-radius:6px; width:26px; height:26px; cursor:pointer;" title="Clear this score">&times;</button></td>` : ''}
       </tr>`;
     });
     html += `</tbody></table>`;
@@ -600,6 +620,14 @@ function renderFinal() {
     btn.addEventListener("click", () => {
       const { name, hole } = btn.dataset;
       toggleChip(state.stage2.scores, name, hole);
+      scheduleSave();
+      render();
+    });
+  });
+  document.querySelectorAll('[data-act="clear"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      const { name, hole } = btn.dataset;
+      clearStrokes(state.stage2.scores, name, hole);
       scheduleSave();
       render();
     });
@@ -658,6 +686,14 @@ function render() {
       render();
     }
   });
+  const adminBtn = document.getElementById("admin-toggle");
+  if (adminBtn) {
+    adminBtn.textContent = adminMode ? "Admin: On" : "Admin: Off";
+    adminBtn.style.background = adminMode ? "var(--gold)" : "var(--birch)";
+    adminBtn.style.color = adminMode ? "var(--birch)" : "var(--muted)";
+    adminBtn.style.borderColor = adminMode ? "var(--gold)" : "var(--border-c)";
+    adminBtn.onclick = () => { adminMode = !adminMode; render(); };
+  }
 }
 
 function saveState() {
