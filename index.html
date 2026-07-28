@@ -210,11 +210,15 @@
   </div>
   <div class="subbar">
     <span id="subbar-title">Group A</span>
-    <span class="sync" id="sync-indicator"><span class="sync-dot"></span>Connecting&hellip;</span>
+    <span style="display:flex; align-items:center; gap:10px;">
+      <button id="leaderboard-cta" style="border:1px solid var(--pine); background:var(--pine); color:var(--birch); border-radius:6px; padding:5px 12px; font-size:0.72rem; font-weight:600; cursor:pointer; font-family:'Work Sans', sans-serif;">&#9873; Leaderboard</button>
+      <span class="sync" id="sync-indicator"><span class="sync-dot"></span>Connecting&hellip;</span>
+    </span>
   </div>
   <div id="content"></div>
   <div class="footer-note" id="footer"></div>
   <div style="text-align:center; padding: 0.5rem 1rem 1rem;">
+    <span id="rules-link" style="font-size:0.75rem; color:var(--muted); text-decoration:underline; cursor:pointer; margin-right:14px;">Rules</span>
     <button id="admin-toggle" style="border:1px solid var(--border-c); background:var(--birch); color:var(--muted); border-radius:6px; padding:5px 12px; font-size:0.7rem; cursor:pointer; font-family:'Work Sans', sans-serif;">Admin: Off</button>
   </div>
 </div>
@@ -237,17 +241,19 @@
 <script>
 const HOLES = [1,2,3,4,5,6];
 const GROUPS = {
-  A: ["Andrew","Jordan","Colasante","Everly"],
-  B: ["Danielle","Katie","Anna","Charlotte"],
-  C: ["Tara","James","Sully","Connor"]
+  A: ["Andrew","Jordan","Connor"],
+  B: ["Danielle","Katie","Anna"],
+  C: ["Tara","James","Sully"],
+  D: ["June","Julie","Charlotte"],
+  E: ["John","Everly","Georgia"]
 };
 const STORAGE_KEY = "bucket-golf-state-v1";
-const TAB_LABELS = { A: "Group A", B: "Group B", C: "Group C", leaderboard: "Leaderboard", final: "Final four", rules: "Rules" };
-const TAB_GLYPHS = { A: "&#9910;", B: "&#9910;", C: "&#9910;", leaderboard: "&#9873;", final: "&#127942;", rules: "&#128220;" };
+const TAB_LABELS = { A: "Group A", B: "Group B", C: "Group C", D: "Group D", E: "Group E", leaderboard: "Leaderboard", final: "Final four", rules: "Rules" };
+const TAB_GLYPHS = { A: "&#9910;", B: "&#9910;", C: "&#9910;", D: "&#9910;", E: "&#9910;", leaderboard: "&#9873;", final: "&#127942;", rules: "&#128220;" };
 
 function defaultState() {
   return {
-    stage1: { A: {}, B: {}, C: {} },
+    stage1: { A: {}, B: {}, C: {}, D: {}, E: {} },
     stage2: { qualifiers: null, scores: {} }
   };
 }
@@ -255,7 +261,7 @@ function defaultState() {
 function normalizeState(s) {
   if (!s || typeof s !== "object") s = {};
   if (!s.stage1 || typeof s.stage1 !== "object") s.stage1 = {};
-  ["A", "B", "C"].forEach(g => {
+  ["A", "B", "C", "D", "E"].forEach(g => {
     if (!s.stage1[g] || typeof s.stage1[g] !== "object") s.stage1[g] = {};
   });
   if (!s.stage2 || typeof s.stage2 !== "object") s.stage2 = { qualifiers: null, scores: {} };
@@ -401,7 +407,7 @@ function clearStrokes(stageObj, name, holeNum) {
 }
 
 function renderBottomNav() {
-  const tabs = ["A", "B", "C", "leaderboard", "final", "rules"];
+  const tabs = ["A", "B", "C", "D", "E", "final"];
   const el = document.getElementById("bottomnav");
   el.innerHTML = tabs.map(t =>
     `<button class="navbtn ${activeTab === t ? 'active' : ''}" data-tab="${t}">
@@ -660,7 +666,7 @@ function renderRules() {
   const html = `
     <div class="section-label">Format</div>
     <div class="rules-block">
-      <p>3 groups of 4, staggered tee times so groups don't bottleneck at buckets. 12 players, 6 holes.</p>
+      <p>5 groups of 3, staggered tee times so groups don't bottleneck at buckets. 15 players, 6 holes.</p>
     </div>
     <div class="section-label">How each hole works</div>
     <div class="rules-block">
@@ -674,7 +680,7 @@ function renderRules() {
     <div class="section-label">Scoring</div>
     <div class="rules-block">
       <ul>
-        <li>Points per hole, within your group of 4: 1st = 4 pts, 2nd = 3 pts, 3rd = 2 pts, 4th = 1 pt</li>
+        <li>Points per hole, within your group of 3: 1st = 3 pts, 2nd = 2 pts, 3rd = 1 pt</li>
         <li>Ties split the points for those places evenly</li>
         <li>Chip-in bonus: +1 point if the ball lands and stays inside the bucket</li>
       </ul>
@@ -684,7 +690,7 @@ function renderRules() {
       <ul>
         <li>Top 4 total scorers across the entire field advance &mdash; no group restrictions, a group can send anywhere from 0 to 4 players</li>
         <li>The final round starts completely fresh, no carryover from the group stage</li>
-        <li>Same points system (4-3-2-1 per hole)</li>
+        <li>Same points-per-hole scoring as the group stage (scaled to the field of 4)</li>
         <li>Winner takes the whole invitational</li>
       </ul>
     </div>
@@ -695,11 +701,15 @@ function renderRules() {
 
 function render() {
   renderBottomNav();
-  if (activeTab === "A" || activeTab === "B" || activeTab === "C") renderGroupView(activeTab);
+  if (["A", "B", "C", "D", "E"].includes(activeTab)) renderGroupView(activeTab);
   else if (activeTab === "leaderboard") renderLeaderboard();
   else if (activeTab === "final") renderFinal();
   else if (activeTab === "rules") renderRules();
   document.getElementById("footer").innerHTML = `Scores sync across every device on this link`;
+  const lbBtn = document.getElementById("leaderboard-cta");
+  if (lbBtn) lbBtn.onclick = () => { activeTab = "leaderboard"; render(); };
+  const rulesLink = document.getElementById("rules-link");
+  if (rulesLink) rulesLink.onclick = () => { activeTab = "rules"; render(); };
   const adminBtn = document.getElementById("admin-toggle");
   if (adminBtn) {
     adminBtn.textContent = adminMode ? "Admin: On (tap to exit)" : "Admin mode";
