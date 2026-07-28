@@ -210,13 +210,13 @@
   </div>
   <div class="subbar">
     <span id="subbar-title">Group A</span>
-    <span style="display:flex; align-items:center; gap:10px;">
-      <button id="admin-toggle" style="border:1px solid var(--border-c); background:var(--birch); color:var(--muted); border-radius:6px; padding:3px 8px; font-size:0.68rem; cursor:pointer; font-family:'Work Sans', sans-serif;">Admin: Off</button>
-      <span class="sync" id="sync-indicator"><span class="sync-dot"></span>Connecting&hellip;</span>
-    </span>
+    <span class="sync" id="sync-indicator"><span class="sync-dot"></span>Connecting&hellip;</span>
   </div>
   <div id="content"></div>
   <div class="footer-note" id="footer"></div>
+  <div style="text-align:center; padding: 0.5rem 1rem 1rem;">
+    <button id="admin-toggle" style="border:1px solid var(--border-c); background:var(--birch); color:var(--muted); border-radius:6px; padding:5px 12px; font-size:0.7rem; cursor:pointer; font-family:'Work Sans', sans-serif;">Admin: Off</button>
+  </div>
 </div>
 <div class="bottomnav" id="bottomnav"></div>
 
@@ -433,12 +433,12 @@ function renderGroupView(groupKey) {
       html += `<tr>
         <td class="pos">${posLabel}</td>
         <td class="player">${nm}</td>
-        <td><div class="stepper">
+        <td>${adminMode ? `<div class="stepper">
           <button data-act="minus" data-group="${groupKey}" data-name="${nm}" data-hole="${h}">-</button>
           <span class="val">${cd.strokes == null ? '-' : cd.strokes}</span>
           <button data-act="plus" data-group="${groupKey}" data-name="${nm}" data-hole="${h}">+</button>
-        </div></td>
-        <td><button class="chip-btn ${cd.chipin ? 'on' : ''}" data-act="chip" data-group="${groupKey}" data-name="${nm}" data-hole="${h}" title="Chip-in bonus">&#9679;</button></td>
+        </div>` : `<span style="font-family:'JetBrains Mono', monospace; font-weight:700;">${cd.strokes == null ? '-' : cd.strokes}</span>`}</td>
+        <td>${adminMode ? `<button class="chip-btn ${cd.chipin ? 'on' : ''}" data-act="chip" data-group="${groupKey}" data-name="${nm}" data-hole="${h}" title="Chip-in bonus">&#9679;</button>` : (cd.chipin ? '<span class="chip-btn on" style="pointer-events:none;">&#9679;</span>' : '')}</td>
         <td class="pts ${cd.strokes == null ? '' : (p > 0 ? 'pos-score' : 'zero-score')}">${cd.strokes == null ? '' : fmtPts(p)}</td>
         ${adminMode ? `<td><button data-act="clear" data-group="${groupKey}" data-name="${nm}" data-hole="${h}" style="border:1px solid var(--red); color:var(--red); background:var(--birch); border-radius:6px; width:26px; height:26px; cursor:pointer;" title="Clear this score">&times;</button></td>` : ''}
       </tr>`;
@@ -509,6 +509,16 @@ function renderLeaderboard() {
     </tr>`;
   });
   html += `</tbody></table>`;
+
+  if (!adminMode) {
+    if (locked) {
+      html += `<div class="section-label">Final four locked</div><div class="tiebreak-panel"><p style="margin:0;font-size:0.85rem;">${state.stage2.qualifiers.join(", ")}</p></div>`;
+    } else {
+      html += `<div class="section-label">Final four</div><div class="tiebreak-panel"><p style="margin:0;font-size:0.85rem;">Not locked yet &mdash; admin mode is needed to lock it in.</p></div>`;
+    }
+    document.getElementById("content").innerHTML = html;
+    return;
+  }
 
   if (!locked) {
     const tiedAtCutoff = all.filter(r => r.total === cutoffVal);
@@ -598,12 +608,12 @@ function renderFinal() {
       html += `<tr>
         <td class="pos">${posLabel}</td>
         <td class="player">${nm}</td>
-        <td><div class="stepper">
+        <td>${adminMode ? `<div class="stepper">
           <button data-act="minus" data-name="${nm}" data-hole="${h}">-</button>
           <span class="val">${cd.strokes == null ? '-' : cd.strokes}</span>
           <button data-act="plus" data-name="${nm}" data-hole="${h}">+</button>
-        </div></td>
-        <td><button class="chip-btn ${cd.chipin ? 'on' : ''}" data-act="chip" data-name="${nm}" data-hole="${h}" title="Chip-in bonus">&#9679;</button></td>
+        </div>` : `<span style="font-family:'JetBrains Mono', monospace; font-weight:700;">${cd.strokes == null ? '-' : cd.strokes}</span>`}</td>
+        <td>${adminMode ? `<button class="chip-btn ${cd.chipin ? 'on' : ''}" data-act="chip" data-name="${nm}" data-hole="${h}" title="Chip-in bonus">&#9679;</button>` : (cd.chipin ? '<span class="chip-btn on" style="pointer-events:none;">&#9679;</span>' : '')}</td>
         <td class="pts ${cd.strokes == null ? '' : (p > 0 ? 'pos-score' : 'zero-score')}">${cd.strokes == null ? '' : fmtPts(p)}</td>
         ${adminMode ? `<td><button data-act="clear" data-name="${nm}" data-hole="${h}" style="border:1px solid var(--red); color:var(--red); background:var(--birch); border-radius:6px; width:26px; height:26px; cursor:pointer;" title="Clear this score">&times;</button></td>` : ''}
       </tr>`;
@@ -692,11 +702,24 @@ function render() {
   document.getElementById("footer").innerHTML = `Scores sync across every device on this link`;
   const adminBtn = document.getElementById("admin-toggle");
   if (adminBtn) {
-    adminBtn.textContent = adminMode ? "Admin: On" : "Admin: Off";
+    adminBtn.textContent = adminMode ? "Admin: On (tap to exit)" : "Admin mode";
     adminBtn.style.background = adminMode ? "var(--gold)" : "var(--birch)";
     adminBtn.style.color = adminMode ? "var(--birch)" : "var(--muted)";
     adminBtn.style.borderColor = adminMode ? "var(--gold)" : "var(--border-c)";
-    adminBtn.onclick = () => { adminMode = !adminMode; render(); };
+    adminBtn.onclick = () => {
+      if (adminMode) {
+        adminMode = false;
+        render();
+      } else {
+        const entered = prompt("Enter admin passcode to edit scores:");
+        if (entered === "1987") {
+          adminMode = true;
+          render();
+        } else if (entered !== null) {
+          alert("Incorrect passcode.");
+        }
+      }
+    };
   }
 }
 
