@@ -249,7 +249,7 @@ const DEFAULT_GROUPS = {
   E: ["John","Everly","Georgia"]
 };
 const STORAGE_KEY = "bucket-golf-state-v1";
-const TAB_LABELS = { A: "Group A", B: "Group B", C: "Group C", D: "Group D", E: "Group E", leaderboard: "Leaderboard", final: "Final four", rules: "Rules", manage: "Manage Groups" };
+const TAB_LABELS = { A: "Group A", B: "Group B", C: "Group C", D: "Group D", E: "Group E", leaderboard: "Leaderboard", final: "Finals", rules: "Rules", manage: "Manage Groups" };
 const TAB_GLYPHS = { A: "&#9910;", B: "&#9910;", C: "&#9910;", D: "&#9910;", E: "&#9910;", leaderboard: "&#9873;", final: "&#127942;", rules: "&#128220;" };
 
 function defaultState() {
@@ -302,6 +302,26 @@ function totalsForGroup(names, stageObj) {
     });
   });
   return totals;
+}
+
+function playedCounts(names, stageObj) {
+  const played = {};
+  names.forEach(nm => played[nm] = 0);
+  HOLES.forEach(h => {
+    const holeObj = stageObj["hole" + h] || {};
+    names.forEach(nm => {
+      if (cellData(holeObj, nm).strokes != null) played[nm]++;
+    });
+  });
+  return played;
+}
+
+function sortByScoreThenPlayed(rows) {
+  return rows.slice().sort((a, b) => {
+    const aPlayed = a.played > 0, bPlayed = b.played > 0;
+    if (aPlayed !== bPlayed) return aPlayed ? -1 : 1;
+    return a.total - b.total;
+  });
 }
 
 function fmtPts(v) {
@@ -414,6 +434,7 @@ function renderGroupView(groupKey) {
   const names = state.groups[groupKey];
   const stageObj = state.stage1[groupKey];
   const totals = totalsForGroup(names, stageObj);
+  const played = playedCounts(names, stageObj);
   let html = "";
   HOLES.forEach(h => {
     const key = "hole" + h;
@@ -442,10 +463,10 @@ function renderGroupView(groupKey) {
   });
   html += `<div class="section-label">Group ${groupKey} standings (lowest total wins)</div>
   <table><thead><tr class="tbl-head"><th>Pos</th><th>Player</th><th></th><th></th><th>Total</th></tr></thead><tbody>`;
-  const sorted = names.map(nm => ({ nm, total: totals[nm] })).sort((a, b) => a.total - b.total);
-  const ranks2 = rankLabels(names.map(nm => ({ key: nm, value: -totals[nm] })));
+  const sorted = sortByScoreThenPlayed(names.map(nm => ({ nm, total: totals[nm], played: played[nm] })));
+  const ranks2 = rankLabels(names.map(nm => ({ key: nm, value: played[nm] > 0 ? -totals[nm] : -Infinity })));
   sorted.forEach(row => {
-    html += `<tr><td class="pos">${ranks2[row.nm]}</td><td class="player">${row.nm}</td><td></td><td></td><td class="pts pos-score">${fmtPts(row.total)}</td></tr>`;
+    html += `<tr><td class="pos">${row.played > 0 ? ranks2[row.nm] : '-'}</td><td class="player">${row.nm}</td><td></td><td></td><td class="pts pos-score">${row.played > 0 ? fmtPts(row.total) : '&mdash;'}</td></tr>`;
   });
   html += `</tbody></table>`;
   document.getElementById("content").innerHTML = html;
@@ -480,36 +501,36 @@ function allTwelveTotals() {
   let all = [];
   Object.keys(state.groups).forEach(g => {
     const totals = totalsForGroup(state.groups[g], state.stage1[g]);
-    state.groups[g].forEach(nm => all.push({ name: nm, group: g, total: totals[nm] }));
+    const played = playedCounts(state.groups[g], state.stage1[g]);
+    state.groups[g].forEach(nm => all.push({ name: nm, group: g, total: totals[nm], played: played[nm] }));
   });
-  all.sort((a, b) => a.total - b.total);
-  return all;
+  return sortByScoreThenPlayed(all);
 }
 
 function renderLeaderboard() {
   const all = allTwelveTotals();
   const locked = !!state.stage2.qualifiers;
-  const ranks = rankLabels(all.map(r => ({ key: r.name, value: -r.total })));
+  const ranks = rankLabels(all.map(r => ({ key: r.name, value: r.played > 0 ? -r.total : -Infinity })));
   let html = `<table><thead><tr class="tbl-head"><th>Pos</th><th>Player</th><th>Grp</th><th></th><th>Score</th></tr></thead><tbody>`;
-  const cutoffIdx = 3;
+  const cutoffIdx = 5;
   const cutoffVal = all.length > cutoffIdx ? all[cutoffIdx].total : 999999;
   all.forEach((row, idx) => {
-    const inTop4 = idx < 4;
+    const inTop4 = idx < 6 && row.played > 0;
     html += `<tr>
-      <td class="pos">${ranks[row.name]}</td>
+      <td class="pos">${row.played > 0 ? ranks[row.name] : '-'}</td>
       <td class="player">${row.name}</td>
       <td style="font-size:0.75rem; color:var(--muted);">${row.group}</td>
       <td>${inTop4 ? '<span class="star">&#9733;</span>' : '<span class="star dim">&#9733;</span>'}</td>
-      <td class="pts pos-score">${fmtPts(row.total)}</td>
+      <td class="pts pos-score">${row.played > 0 ? fmtPts(row.total) : '&mdash;'}</td>
     </tr>`;
   });
   html += `</tbody></table>`;
 
   if (!adminMode) {
     if (locked) {
-      html += `<div class="section-label">Final four locked</div><div class="tiebreak-panel"><p style="margin:0;font-size:0.85rem;">${state.stage2.qualifiers.join(", ")}</p></div>`;
+      html += `<div class="section-label">Finals locked</div><div class="tiebreak-panel"><p style="margin:0;font-size:0.85rem;">${state.stage2.qualifiers.join(", ")}</p></div>`;
     } else {
-      html += `<div class="section-label">Final four</div><div class="tiebreak-panel"><p style="margin:0;font-size:0.85rem;">Not locked yet &mdash; admin mode is needed to lock it in.</p></div>`;
+      html += `<div class="section-label">Finals</div><div class="tiebreak-panel"><p style="margin:0;font-size:0.85rem;">Not locked yet &mdash; admin mode is needed to lock it in.</p></div>`;
     }
     document.getElementById("content").innerHTML = html;
     return;
@@ -518,24 +539,24 @@ function renderLeaderboard() {
   if (!locked) {
     const tiedAtCutoff = all.filter(r => r.total === cutoffVal);
     const clearIn = all.filter(r => r.total < cutoffVal);
-    const needed = 4 - clearIn.length;
+    const needed = 6 - clearIn.length;
     if (tiedAtCutoff.length > needed && needed > 0) {
       html += `<div class="section-label">Tie at the cutoff &mdash; pick ${needed} to advance</div><div class="tiebreak-panel" id="tiebreak-box">`;
       tiedAtCutoff.forEach(r => {
         html += `<label class="tiebreak-item"><input type="checkbox" class="tie-check" data-name="${r.name}"> ${r.name} (${fmtPts(r.total)})</label>`;
       });
-      html += `</div><button class="btn-primary" id="lock-tiebreak" disabled>Lock final four</button>`;
+      html += `</div><button class="btn-primary" id="lock-tiebreak" disabled>Lock finals</button>`;
     } else {
-      html += `<button class="btn-primary" id="lock-final">Lock final four</button>`;
+      html += `<button class="btn-primary" id="lock-final">Lock finals</button>`;
     }
   } else {
-    html += `<div class="section-label">Final four locked</div><div class="tiebreak-panel"><p style="margin:0;font-size:0.85rem;">${state.stage2.qualifiers.join(", ")}</p></div><button class="btn-ghost" id="unlock-final">Unlock and re-pick</button>`;
+    html += `<div class="section-label">Finals locked</div><div class="tiebreak-panel"><p style="margin:0;font-size:0.85rem;">${state.stage2.qualifiers.join(", ")}</p></div><button class="btn-ghost" id="unlock-final">Unlock and re-pick</button>`;
   }
   document.getElementById("content").innerHTML = html;
 
   const lockBtn = document.getElementById("lock-final");
   if (lockBtn) lockBtn.addEventListener("click", () => {
-    state.stage2.qualifiers = all.slice(0, 4).map(r => r.name);
+    state.stage2.qualifiers = all.slice(0, 6).map(r => r.name);
     state.stage2.scores = {};
     scheduleSave();
     activeTab = "final";
@@ -546,7 +567,7 @@ function renderLeaderboard() {
   const lockTieBtn = document.getElementById("lock-tiebreak");
   if (tieBoxes.length) {
     const clearIn = all.filter(r => r.total < cutoffVal).map(r => r.name);
-    const needed = 4 - clearIn.length;
+    const needed = 6 - clearIn.length;
     tieBoxes.forEach(cb => cb.addEventListener("change", () => {
       const checked = Array.from(tieBoxes).filter(x => x.checked);
       lockTieBtn.disabled = checked.length !== needed;
@@ -563,7 +584,7 @@ function renderLeaderboard() {
 
   const unlockBtn = document.getElementById("unlock-final");
   if (unlockBtn) unlockBtn.addEventListener("click", () => {
-    if (confirm("Unlock the final four? This clears any final-round scores entered so far.")) {
+    if (confirm("Unlock the finals? This clears any final-round scores entered so far.")) {
       state.stage2.qualifiers = null;
       state.stage2.scores = {};
       scheduleSave();
@@ -574,12 +595,13 @@ function renderLeaderboard() {
 
 function renderFinal() {
   if (!state.stage2.qualifiers) {
-    document.getElementById("content").innerHTML = `<div class="empty-msg">Final four hasn't been locked in yet. Head to the leaderboard tab once group stage scoring wraps up.</div>`;
+    document.getElementById("content").innerHTML = `<div class="empty-msg">Finals haven't been locked in yet. Head to the leaderboard tab once group stage scoring wraps up.</div>`;
     return;
   }
   const names = state.stage2.qualifiers;
   const stageObj = state.stage2.scores;
   const totals = totalsForGroup(names, stageObj);
+  const played = playedCounts(names, stageObj);
   const allHolesFilled = HOLES.every(h => {
     const holeObj = stageObj["hole" + h] || {};
     return names.every(nm => cellData(holeObj, nm).strokes != null);
@@ -614,12 +636,12 @@ function renderFinal() {
     });
     html += `</tbody></table>`;
   });
-  html += `<div class="section-label">Final four standings (lowest total wins)</div>
+  html += `<div class="section-label">Finals standings (lowest total wins)</div>
   <table><thead><tr class="tbl-head"><th>Pos</th><th>Player</th><th></th><th></th><th>Total</th></tr></thead><tbody>`;
-  const sorted = names.map(nm => ({ nm, total: totals[nm] })).sort((a, b) => a.total - b.total);
-  const ranks2 = rankLabels(names.map(nm => ({ key: nm, value: -totals[nm] })));
+  const sorted = sortByScoreThenPlayed(names.map(nm => ({ nm, total: totals[nm], played: played[nm] })));
+  const ranks2 = rankLabels(names.map(nm => ({ key: nm, value: played[nm] > 0 ? -totals[nm] : -Infinity })));
   sorted.forEach(row => {
-    html += `<tr><td class="pos">${ranks2[row.nm]}</td><td class="player">${row.nm}</td><td></td><td></td><td class="pts pos-score">${fmtPts(row.total)}</td></tr>`;
+    html += `<tr><td class="pos">${row.played > 0 ? ranks2[row.nm] : '-'}</td><td class="player">${row.nm}</td><td></td><td></td><td class="pts pos-score">${row.played > 0 ? fmtPts(row.total) : '&mdash;'}</td></tr>`;
   });
   html += `</tbody></table>`;
   document.getElementById("content").innerHTML = html;
@@ -674,10 +696,10 @@ function renderRules() {
         <li>Scores are directly comparable across every group regardless of group size</li>
       </ul>
     </div>
-    <div class="section-label">Final four</div>
+    <div class="section-label">Finals</div>
     <div class="rules-block">
       <ul>
-        <li>Top 4 lowest total scorers across the entire field advance &mdash; no group restrictions, a group can send anywhere from 0 to 4 players</li>
+        <li>Top 6 lowest total scorers across the entire field advance &mdash; no group restrictions, a group can send anywhere from 0 to 6 players</li>
         <li>The final round starts completely fresh, no carryover from the group stage</li>
         <li>Same stroke-play scoring as the group stage</li>
         <li>Lowest total in the final wins the whole invitational</li>
