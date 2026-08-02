@@ -379,7 +379,7 @@ function setStrokes(stageObj, name, holeNum, delta) {
   let cur = stageObj[key][name].strokes;
   let next = cur == null ? 1 : cur + delta;
   if (next < 1) next = 1;
-  if (next > 6) next = 6;
+  if (next > 8) next = 8;
   stageObj[key][name].strokes = next;
 }
 
@@ -662,7 +662,8 @@ function renderRules() {
         <li>Every hole is a par 3 &mdash; 3 shots to hole out</li>
         <li>One club per player for the whole round, no switching</li>
         <li>Hitting any part of the bucket completes the hole</li>
-        <li>Stroke cap: 6 per hole (double par) &mdash; pick up and take a 6 if not in by then</li>
+        <li>Stroke cap: 8 per hole &mdash; pick up and take an 8 if not in by then</li>
+        <li>Ball out of bounds: take a drop from where it went out, with a 1-stroke penalty added</li>
       </ul>
     </div>
     <div class="section-label">Scoring</div>
